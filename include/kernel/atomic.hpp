@@ -25,9 +25,9 @@ public:
 	return ret;
     }
 
-    bool compare_exchange(T expected, T desired, int memorder = __ATOMIC_SEQ_CST)
+    bool compare_exchange(T expected, T desired, int success_memorder = __ATOMIC_SEQ_CST, int failure_memorder = __ATOMIC_SEQ_CST)
     {
-	return __atomic_compare_exchange(&value, &expected, &desired, false, memorder, memorder);
+	return __atomic_compare_exchange(&value, &expected, &desired, false, success_memorder, failure_memorder);
     }
 
     T add_fetch (T val, int memorder = __ATOMIC_SEQ_CST) { return __atomic_add_fetch (&value, val, memorder); }

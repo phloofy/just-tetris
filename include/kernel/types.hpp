@@ -20,3 +20,9 @@ using uptr	= unsigned long;
 using iptr	=          long;
 using usize	= unsigned int;
 using isize	=          int;
+
+struct list_head
+{    
+    list_head* prev;
+    list_head* next;
+};

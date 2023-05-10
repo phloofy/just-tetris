@@ -166,3 +166,55 @@ public:
 private:
     bool int_state;
 };
+
+template<class T, class Mutex>
+class Sync
+{    
+    class Locked
+    {
+    public:
+	Locked(Sync* parent) : parent(parent) {}
+
+	Locked(const Locked&) = delete;
+	
+	~Locked()
+	{
+	    reset();
+	}
+
+	Locked& operator=(const Locked&) = delete;
+	
+	operator T&()
+	{
+	    return parent->object;
+	}
+
+	void reset()
+	{
+	    if (parent != nullptr)
+	    {
+		parent->mutex.unlock();
+	    }
+	}
+	
+    private:
+	Sync* parent;
+    };
+    
+public:
+    template<class... Args>
+    Sync(Args&&... args) : mutex(), object(static_cast<Args&&>(args)...) {}
+
+    Sync(const Sync&) = delete;
+
+    Sync& operator=(const Sync&) = delete;
+
+    Locked lock()
+    {
+	return Locked(this);
+    }
+    
+private:
+    Mutex mutex;
+    T object;
+};
