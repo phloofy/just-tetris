@@ -37,5 +37,5 @@ Port& Port::operator=(u32 value)
     return *this;
 }
 
-PortIO port;
+PortIO ports;
 

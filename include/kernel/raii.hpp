@@ -184,9 +184,9 @@ class Sync
 
 	Locked& operator=(const Locked&) = delete;
 	
-	operator T&()
+	T* operator->()
 	{
-	    return parent->object;
+	    return &parent->object;
 	}
 
 	void reset()
@@ -212,6 +212,11 @@ public:
     Locked lock()
     {
 	return Locked(this);
+    }
+
+    T& unsafe()
+    {
+	return object;
     }
     
 private:

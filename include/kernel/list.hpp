@@ -1,10 +1,14 @@
 #pragma once
 
+#include <kernel/machine.hpp>
 #include <kernel/types.hpp>
 
 template<class T, list_head T::* Node>
+class ListIterator;
+
+template<class T, list_head T::* Node>
 class List
-{
+{   
 public:
     
     void push_front(T* elem)
@@ -52,6 +56,21 @@ public:
 	header.next = &header;
 	return object_from_list_head(node);
     }
+
+    void monitor_front()
+    {
+	monitor(&header.next);
+    }
+
+    void monitor_back()
+    {
+	monitor(&header.prev);
+    }
+    
+    ListIterator<T, Node> iterator()
+    {
+	return ListIterator<T, Node>(this);
+    }
     
     operator bool()
     {
@@ -66,4 +85,71 @@ private:
     
 private:    
     list_head header;
+
+    friend class ListIterator<T, Node>;    
+};
+
+template<class T, list_head T::* Node>
+class ListIterator
+{
+public:
+
+    ListIterator(List<T, Node>* list) : node(list->header.next), header(&list->header)
+    {
+    }
+    
+    void next()
+    {
+	node = node->next;
+    }
+
+    void prev()
+    {
+	node = node->prev;
+    }
+
+    operator bool() const
+    {
+	return node != header;
+    }
+    
+    T* operator ->() const
+    {
+	return List<T, Node>::object_from_list_head(node);
+    }
+
+    T& operator *() const
+    {
+	return *List<T, Node>::object_from_list_head(node);
+    }
+
+    ListIterator& operator++()
+    {
+	next();
+	return *this;
+    }
+
+    ListIterator operator++(int)
+    {
+	ListIterator it = *this;
+	next();
+	return it;
+    }
+
+    ListIterator& operator--()
+    {
+	prev();
+	return *this;
+    }
+
+    ListIterator operator--(int)
+    {
+	ListIterator it = *this;
+	prev();
+	return *this;
+    }	
+    
+private:
+    list_head* node;
+    list_head* header;
 };

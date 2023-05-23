@@ -21,13 +21,12 @@ public:
 	{
 	    int_restore(state);
 	    taken.monitor();
-	    state = int_disable();
 	    while (taken.load())
 	    {
-		int_restore(state);
 		mwait();
 		taken.monitor();
 	    }
+	    state = int_disable();
 	}
 	int_state = state;
     }

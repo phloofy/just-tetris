@@ -242,5 +242,5 @@ void advance(OutputStream<char>& out, const char*& format, void* arg)
 
 } // detail
 
-OutputStream<char>* printf_out = nullptr;
+OutputStream<char>* printf_out;
 Spinlock printf_lock;

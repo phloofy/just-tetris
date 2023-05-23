@@ -57,6 +57,20 @@ mwait:
 pause:
 	pause
 	ret
+
+	.global rdmsr
+rdmsr:
+	mov 4(%esp),%ecx
+	rdmsr
+	ret
+
+	.global wrmsr
+wrmsr:
+	mov 4(%esp),%ecx
+	mov 8(%esp),%eax
+	mov 12(%esp),%edx
+	wrmsr
+	ret
 	
 	/* interrupts */
 	
