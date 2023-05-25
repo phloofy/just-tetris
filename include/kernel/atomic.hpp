@@ -63,7 +63,7 @@ public:
     }
     
     operator T() const { return load(); }
-    atomic<T>& operator=(T val) { return store(val); }
+    atomic<T>& operator=(T val) { store(val); return *this; }
     
     atomic<T>& operator+=(T val) { add_fetch(val); return *this; }
     atomic<T>& operator-=(T val) { sub_fetch(val); return *this; }
@@ -79,4 +79,4 @@ public:
 
 private:
     volatile T value;
-};
+} __attribute__((packed));

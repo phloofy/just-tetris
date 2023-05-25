@@ -173,7 +173,10 @@ class Sync
     class Locked
     {
     public:
-	Locked(Sync* parent) : parent(parent) {}
+	Locked(Sync* parent) : parent(parent)
+	{
+	    parent->mutex.lock();
+	}
 
 	Locked(const Locked&) = delete;
 	

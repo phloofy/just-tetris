@@ -4,6 +4,7 @@
 
 void kernel_main()
 {
-    printf("0x%x\n", &((LocalAPIC*) 0)->divide_configuration);
+    printf("hello world\n");
+    //printf("0x%x\n", &((LocalAPIC*) 0)->divide_configuration);
     
 }

@@ -2,6 +2,14 @@
 
 #include <kernel/types.hpp>
 
+extern "C" u8 inb(int port);
+extern "C" u16 inw(int port);
+extern "C" u32 inl(int port);
+
+extern "C" void outb(int port, u8 value);
+extern "C" void outw(int port, u16 value);
+extern "C" void outl(int port, u32 value);
+
 extern "C" void monitor(volatile void*);
 extern "C" void mwait();
 extern "C" void pause();

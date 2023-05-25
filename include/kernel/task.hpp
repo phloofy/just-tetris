@@ -15,6 +15,8 @@ public:
     
     TaskWork(const T& function) : function(function) {}
 
+    TaskWork(const TaskWork&) = delete;
+
     void run() override
     {
 	function();
@@ -34,11 +36,17 @@ struct Task
 	Task* parent;
     };
 
+public:
+
+    Task();
+    Task(TaskWorkBase* work);    
+    
+public:
     const uint id;
     list_head task_list;
     State state;
     TaskWorkBase* work;
-    byte stack_base[STACK_SIZE];
+    byte stack_base[STACK_SIZE] __attribute__((aligned(16)));
 };
 
 template<class T>
@@ -62,18 +70,19 @@ void block(const T& callback)
     block((uptr) &callback, (uptr) invoke<T>);
 }
 
-[[noreturn]]
+[[noreturn]] 
 extern void stop();
 
-[[noreturn]]
+[[noreturn]] 
 extern void idle();
 
 } // CurrentTask
 
+extern void task_init();
 extern void task(TaskWorkBase* work);
 
 template<class T>
 void task(const T& work)
 {
-    task(new TaskWork(work));
+    task((TaskWorkBase*) new TaskWork(work));
 }

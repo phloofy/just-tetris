@@ -4,9 +4,9 @@
 #include <kernel/crt.hpp>
 #include <kernel/idt.hpp>
 #include <kernel/mm.hpp>
-#include <kernel/ports.hpp>
 #include <kernel/printf.hpp>
 #include <kernel/smp.hpp>
+#include <kernel/task.hpp>
 #include <kernel/types.hpp>
 #include <kernel/uart.hpp>
 
@@ -53,11 +53,9 @@ static void global_init()
     CRT::init();
   
     IDT::init();
+
+    task_init();
     
-    /* TODO
-     *
-     * thread initialization
-     */
     global_init_done = true;
 }
 
@@ -86,13 +84,10 @@ extern "C" void kernel_init()
 	global_init();
 
 	Config& kconf = kernel_config;	
-	
-	SMP::local_apic = (LocalAPIC*) kconf.local_apic;
-	SMP::io_apic = (IOAPIC*) kconf.io_apic;
-	
-	SMP::init();
-	SMP::core_init();
 
+	APIC::init();
+	APIC::enable();
+	
 	barrier = new Barrier(kconf.proc_count);
 	
 	running.add(1);
@@ -104,6 +99,15 @@ extern "C" void kernel_init()
 	    
 	    while (running.load() <= id);
 	}       
+
+	task([] {
+	    kernel_main();
+	    while (true)
+	    {
+		outb(0xF4, 0);
+		pause();
+	    }
+	});
 	
 	/* TODO
 	 * apit calibration
@@ -114,30 +118,9 @@ extern "C" void kernel_init()
     else
     {
 	running.add(1);
-	SMP::core_init();	
+	APIC::enable();
     }
     per_core_init();
 
-    /* TODO
-     *
-     * enter idle state
-     */
-    barrier->sync();
-    kernel_main();
-    barrier->sync();
-    if (SMP::core() == 0)
-    {
-	while (true)
-	{
-	    ports[0xf4] = u8(0x00);
-	    pause();
-	}
-    }
-    else
-    {
-	while (true)
-	{
-	    asm volatile ("hlt");
-	}
-    }
+    CurrentTask::idle();
 }

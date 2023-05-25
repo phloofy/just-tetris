@@ -61,7 +61,7 @@ static void print_int(OutputStream<char>& out, int flags, int width, int value, 
     {
 	if (value < 0)
 	{
-	    sign = ' ';
+	    sign = '-';
 	    uvalue = -value;
 	}
 	else if (flags & FF_PLUS)

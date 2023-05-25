@@ -4,6 +4,8 @@
 #include <kernel/spinlock.hpp>
 #include <kernel/types.hpp>
 
+#include <utility/static_block.hpp>
+
 void* operator new(usize size)
 {
     void* ptr = kmem_alloc(size);
@@ -45,25 +47,30 @@ struct Block
     list_head free_list;
 };
 
-static Spinlock kmem_lock;
-static List<Block, &Block::free_list> kmem_bins[28];
-
 static inline uint indexof(usize size)
 {
-    return __builtin_ctz(size) - 4;
+    return 27 - __builtin_clz(size);
+}
+
+static Spinlock kmem_lock;
+static List<Block, &Block::free_list> kmem_bins[28];
+static Block* initial_block;
+static_block
+{
+    kmem_bins[indexof(initial_block->size_flags & KMEM_SIZE_MASK)].push_front(initial_block);
 }
 
 void* kmem_alloc(usize size)
 {    
-    usize min_size = (size + 0x7) & 0x7;
+    usize min_size = (size + KMEM_HEADER_SIZE + 0x7) & ~0x7;    
     uint idx = indexof(min_size);
     LockGuard g { kmem_lock };
-
-    Block* block = nullptr;
-    usize best_fit = -1;
     
     for (; idx < 28; idx++)
     {
+	Block* block = nullptr;
+	usize best_fit = -1;
+	
 	for (auto it = kmem_bins[idx].iterator(); it; ++it)
 	{
 	    usize block_size = it->size_flags & KMEM_SIZE_MASK;
@@ -90,14 +97,14 @@ void* kmem_alloc(usize size)
 	}
 	if (block != nullptr)
 	{
-	    usize rem_size = best_fit - min_size;	    
+	    usize rem_size = best_fit - min_size;
 	    kmem_bins[idx].remove(block);
 	    block->size_flags = min_size | KMEM_PREV_INUSE | KMEM_INUSE;
 	    Block* rem = (Block*) (((uptr) block) + min_size);
 	    rem->prev_size = min_size;
 	    rem->size_flags = rem_size | KMEM_PREV_INUSE;
-	    kmem_bins[indexof(rem_size)].push_front(rem);
-	    
+	    kmem_bins[indexof(rem_size)].push_back(rem);
+
 	    return (void*) (((uptr) block) + KMEM_HEADER_SIZE);
 	}
     }
@@ -132,7 +139,7 @@ void kmem_free(void* ptr)
 }
 
 void kmem_init(uptr start, uptr end)
-{
+{  
     Block* block = (Block*) start;
     usize block_size = end - start - KMEM_HEADER_SIZE;
     block->prev_size = 0;
@@ -142,5 +149,5 @@ void kmem_init(uptr start, uptr end)
     guard->prev_size = block_size;
     guard->size_flags = 0 | KMEM_INUSE;
 
-    kmem_bins[indexof(block_size)].push_front(block);
+    initial_block = block;
 }

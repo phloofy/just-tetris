@@ -1,9 +1,12 @@
 #include <kernel/list.hpp>
+#include <kernel/printf.hpp>
 #include <kernel/raii.hpp>
 #include <kernel/smp.hpp>
 #include <kernel/spinlock.hpp>
 #include <kernel/task.hpp>
 #include <kernel/types.hpp>
+
+static atomic<uint> next_id = 0;
 
 static Sync<List<Task, &Task::task_list>, Spinlock> ready;
 static Sync<List<Task, &Task::task_list>, Spinlock> expired;
@@ -27,18 +30,30 @@ static void reap()
     }
 }
 
-[[maybe_unused]]
 static void entry()
-{
+{    
     InterruptGuard g {};
-    Task* current = core_data().active;
+    CoreState& core = core_data();
     g.reset();
-    
+
+    core.preemptable = true;
+    Task* current = core.active;
+
     current->work->run();
     
     delete current->work;
     current->work = nullptr;
     CurrentTask::stop();
+}
+
+Task::Task() : id(next_id.fetch_add(1)), work(nullptr)
+{
+    state.parent = this;
+}
+
+Task::Task(TaskWorkBase* work) : id(next_id.fetch_add(1)), work(work)
+{
+    state.parent = this;
 }
 
 extern "C" [[noreturn]] void context_switch(Task::State* target, Task::State* source, uptr callback, uptr invoke);
@@ -75,7 +90,7 @@ void yield()
 
     Task* source = core.active;
     core.active = target;
-    context_switch(&target->state, &source->state, (uptr) schedule, (uptr) invoke<void(*)(Task*)>);
+    context_switch(&target->state, &source->state, (uptr) schedule, (uptr) invoke<void(Task*)>);
 
     core.preemptable = true;
 }
@@ -100,7 +115,7 @@ void preempt(uint id)
 
     Task* source = core.active;
     core.active = target;
-    context_switch(&target->state, &source->state, (uptr) schedule, (uptr) invoke<void(*)(Task*)>);
+    context_switch(&target->state, &source->state, (uptr) schedule, (uptr) invoke<void(Task*)>);
 
     core.preemptable = true;
 }
@@ -140,7 +155,7 @@ void stop()
 
     Task* source = core.active;
     core.active = target;
-    context_switch(&target->state, &source->state, (uptr) finalize, (uptr) invoke<void(*)(Task*)>);    
+    context_switch(&target->state, &source->state, (uptr) finalize, (uptr) invoke<void(Task*)>);    
 }
 
 void idle()
@@ -153,27 +168,58 @@ void idle()
     while (true)
     {
 	ready.unsafe().monitor_front();
-	Task* target = ready.lock()->pop_front();
+	
+	Task* target = ready.lock()->pop_front();	
 	while (target == nullptr)
 	{
 	    reap();
-	    mwait();
-	    target = ready.lock()->pop_front();
+	    mwait();	   
+	    target = ready.lock()->pop_front();	    
 	    ready.unsafe().monitor_front();
 	}
-
+	
 	Task* source = core.active;
 	core.active = target;
-	context_switch(&target->state, &source->state, (uptr) noop, (uptr) invoke<void(*)(Task*)>);	
+	context_switch(&target->state, &source->state, (uptr) noop, (uptr) invoke<void(Task*)>);	
     } 
 }
 
 } // CurrentTask
 
+void task_init()
+{
+    for (uint id = 0; id < kernel_config.proc_count; id++)
+    {
+	Task* tcb = new Task();
+	core_data[id].active = tcb;
+	core_data[id].idle = tcb;
+	core_data[id].preemptable = false;
+    }
+}
 
 void task(TaskWorkBase* work)
 {
     Task* tcb = expired.lock()->pop_front();
-    delete tcb->work;
-    tcb->work = work;    
+
+    if (tcb != nullptr)
+    {
+	delete tcb->work;
+	*((uint*) &tcb->id) = next_id.fetch_add(1);
+	tcb->work = work;
+    }
+    else
+    {
+	tcb = new Task(work);
+    }
+
+    ureg* stack = (ureg*) (tcb->stack_base + Task::STACK_SIZE);
+    stack[-1] = (ureg) entry;
+    stack[-2] = 0x200;
+    stack[-3] = 0;
+    stack[-4] = 0;
+    stack[-5] = 0;
+    stack[-6] = 0;
+    tcb->state.esp = (ureg) &stack[-6];    
+    
+    schedule(tcb);    
 }

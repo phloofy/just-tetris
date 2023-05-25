@@ -3,6 +3,8 @@
 #include <kernel/machine.hpp>
 #include <kernel/types.hpp>
 
+#include <kernel/printf.hpp>
+
 template<class T, list_head T::* Node>
 class ListIterator;
 
@@ -10,11 +12,31 @@ template<class T, list_head T::* Node>
 class List
 {   
 public:
+
+    List()
+    {
+	header.prev = &header;
+	header.next = &header;
+    }
+
+    T* front() const
+    {
+	list_head* node = header.next;
+	printf("node = 0x%x\n", node);
+	return (node == &header) ? nullptr : object_from_list_head(node);
+    }
+
+    T* back() const
+    {
+	list_head* node = header.prev;
+	return (node == &header) ? nullptr : object_from_list_head(node);
+    }
     
     void push_front(T* elem)
     {
 	(elem->*Node).next = header.next;
 	(elem->*Node).prev = &header;
+	header.next->prev = &(elem->*Node);
 	header.next = &(elem->*Node);
     }
 
@@ -22,12 +44,17 @@ public:
     {
 	(elem->*Node).prev = header.prev;
 	(elem->*Node).next = &header;
+	header.prev->next = &(elem->*Node);
 	header.prev = &(elem->*Node);
     }
 
     T* pop_front()
     {
 	list_head* node = header.next;
+	if (node == &header)
+	{
+	    return nullptr;
+	}
 	header.next = node->next;
 	node->next->prev = &header;
 	return object_from_list_head(node);
@@ -36,6 +63,10 @@ public:
     T* pop_back()
     {
 	list_head* node = header.prev;
+	if (node == &header)
+	{
+	    return nullptr;
+	}
 	header.prev = node->prev;
 	node->prev->next = &header;
 	return object_from_list_head(node);
@@ -50,6 +81,10 @@ public:
     T* clear()
     {
 	list_head* node = header.next;
+	if (node == &header)
+	{
+	    return nullptr;
+	}
 	node->prev = header.prev;
 	header.prev->next = node;
 	header.prev = &header;
@@ -57,6 +92,11 @@ public:
 	return object_from_list_head(node);
     }
 
+    ListIterator<T, Node> iterator()
+    {
+	return ListIterator<T, Node>(this);
+    }
+    
     void monitor_front()
     {
 	monitor(&header.next);
@@ -65,12 +105,7 @@ public:
     void monitor_back()
     {
 	monitor(&header.prev);
-    }
-    
-    ListIterator<T, Node> iterator()
-    {
-	return ListIterator<T, Node>(this);
-    }
+    }   
     
     operator bool()
     {
@@ -80,7 +115,7 @@ public:
 private:
     static T* object_from_list_head(list_head* list)
     {
-	return (T*) ((uptr) list) - ((usize) &(((T*) 0)->*Node));
+	return (T*) (((uptr) list) - ((usize) &(((T*) 0)->*Node)));
     }
     
 private:    
@@ -113,12 +148,12 @@ public:
 	return node != header;
     }
     
-    T* operator ->() const
+    T* operator->() const
     {
 	return List<T, Node>::object_from_list_head(node);
     }
 
-    T& operator *() const
+    T& operator*() const
     {
 	return *List<T, Node>::object_from_list_head(node);
     }
